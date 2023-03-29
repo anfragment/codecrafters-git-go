@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	p = flag.Bool("p", false, "Pretty-print object's content")
-	w = flag.Bool("w", false, "Actually write the object into the object database")
+	p        = flag.Bool("p", false, "Pretty-print object's content")
+	w        = flag.Bool("w", false, "Actually write the object into the object database")
+	nameonly = flag.Bool("name-only", false, "List only filenames (instead of the \"long\" output), one per line.")
 )
 
 // Usage: your_git.sh <command> <arg1> <arg2> ...
@@ -44,7 +45,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		err := CatFile(objectname, os.Stdout)
+		err := CatFile(objectname)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "cat-file: %v\n", err)
 		}
@@ -65,17 +66,29 @@ func main() {
 			dirname, filename := objectname[:2], objectname[2:]
 			err := os.MkdirAll(fmt.Sprintf(".git/objects/%s", dirname), 0755)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
+				fmt.Fprintf(os.Stderr, "hash-object: %v\n", err)
 				os.Exit(1)
 			}
 			err = os.WriteFile(fmt.Sprintf(".git/objects/%s/%s", dirname, filename), buffer.Bytes(), 0644)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
+				fmt.Fprintf(os.Stderr, "hash-object: %v\n", err)
 				os.Exit(1)
 			}
 		}
 
 		fmt.Println(objectname)
+
+	case "ls-tree":
+		objectname := os.Args[len(os.Args)-1]
+
+		os.Args = os.Args[1 : len(os.Args)-1]
+		flag.Parse()
+
+		err := LsTree(objectname, *nameonly)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ls-tree: %v\n")
+			os.Exit(1)
+		}
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
