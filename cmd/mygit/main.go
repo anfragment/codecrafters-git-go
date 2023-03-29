@@ -1,21 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"compress/zlib"
-	"crypto/sha1"
-	"encoding/hex"
 	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
 	"os"
 )
 
 var (
-	p = flag.String("p", "", "object which contents to print")
-	w = flag.String("w", "", "file which contents to write to the objects database")
+	p = flag.Bool("p", false, "Pretty-print object's content")
+	w = flag.Bool("w", false, "Actually write the object into the object database")
 )
 
 // Usage: your_git.sh <command> <arg1> <arg2> ...
@@ -26,8 +19,6 @@ func main() {
 	}
 
 	command := os.Args[1]
-	os.Args = append(os.Args[:1], os.Args[2:]...)
-	flag.Parse()
 
 	switch command {
 	case "init":
@@ -44,68 +35,47 @@ func main() {
 
 		fmt.Println("Initialized git directory")
 	case "cat-file":
-		if p == nil {
-			log.Fatal("cat-file: -p parameter required")
-		}
-		if len(*p) != 40 {
-			log.Fatal("cat-file: -p has to be 40 characters long")
+		objectname := os.Args[len(os.Args)-1]
+
+		os.Args = os.Args[1 : len(os.Args)-1]
+		flag.Parse()
+		if !*p {
+			fmt.Fprintf(os.Stderr, "cat-file: -p required\n")
+			os.Exit(1)
 		}
 
-		dir, fileName := (*p)[:2], (*p)[2:]
-		file, err := os.Open(fmt.Sprintf(".git/objects/%s/%s", dir, fileName))
+		err := CatFile(objectname, os.Stdout)
 		if err != nil {
-			log.Fatal("cat-file: unable to open file")
+			fmt.Fprintf(os.Stderr, "cat-file: %v\n", err)
 		}
-		defer file.Close()
-
-		zlibReader, err := zlib.NewReader(file)
-		if err != nil {
-			log.Fatal("cat-file: unable to initialize zlib reader")
-		}
-		defer zlibReader.Close()
-
-		var contents bytes.Buffer
-		if _, err := io.Copy(&contents, zlibReader); err != nil {
-			log.Fatal("cat-file: error")
-		}
-		contents.ReadBytes('\x00')
-		fmt.Print(contents.String())
 
 	case "hash-object":
-		if w == nil {
-			log.Fatal("hash-object: -w parameter required")
-		}
-		// read file once to both compute sha-1 sum and compress using zlib
-		// with larger files, using os.Open might be better
-		contents, err := ioutil.ReadFile(*w)
+		filepath := os.Args[len(os.Args)-1]
+
+		os.Args = os.Args[1 : len(os.Args)-1]
+		flag.Parse()
+
+		objectname, buffer, err := HashObject(filepath)
 		if err != nil {
-			log.Fatal("hash-object: unable to open file")
-		}
-		// https://alblue.bandlem.com/2011/08/git-tip-of-week-objects.html
-		prefix := fmt.Sprintf("blob %d\x00", len(contents))
-		data := append([]byte(prefix), contents...)
-
-		hasher := sha1.New()
-		hasher.Write(data)
-		objectName := hex.EncodeToString(hasher.Sum(nil))
-
-		dirName, fileName := objectName[:2], objectName[2:]
-		if err := os.MkdirAll(fmt.Sprintf(".git/objects/%s", dirName), 0755); err != nil {
-			log.Fatal("hash-object: unable to create parent object directory")
+			fmt.Fprintf(os.Stderr, "hash-object: %v\n", err)
+			os.Exit(1)
 		}
 
-		compressed := bytes.NewBuffer(nil)
-		zlibWriter := zlib.NewWriter(compressed)
-		if _, err := zlibWriter.Write(data); err != nil {
-			log.Fatal("hash-object: failed to compress the file")
+		if *w {
+			dirname, filename := objectname[:2], objectname[2:]
+			err := os.MkdirAll(fmt.Sprintf(".git/objects/%s", dirname), 0755)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+			err = os.WriteFile(fmt.Sprintf(".git/objects/%s/%s", dirname, filename), buffer.Bytes(), 0644)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
 		}
-		if err := zlibWriter.Close(); err != nil {
-			log.Fatal("hash-object: failed to flush the compressor")
-		}
-		if err := os.WriteFile(fmt.Sprintf(".git/objects/%s/%s", dirName, fileName), compressed.Bytes(), 0644); err != nil {
-			log.Fatal("hash-object: failed to write to object file")
-		}
-		fmt.Println(objectName)
+
+		fmt.Println(objectname)
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
