@@ -9,12 +9,12 @@ import (
 	"io/ioutil"
 )
 
-func HashObject(filepath string) (objectname string, buffer *bytes.Buffer, err error) {
+func HashObject(filepath string, write bool) (objectname string, err error) {
 	// read file once to both compute sha-1 sum and compress using zlib
 	// with larger files, using os.Open might be better
 	contents, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
 	// https://alblue.bandlem.com/2011/08/git-tip-of-week-objects.html
 	prefix := fmt.Sprintf("blob %d\x00", len(contents))
@@ -27,11 +27,18 @@ func HashObject(filepath string) (objectname string, buffer *bytes.Buffer, err e
 	compressed := bytes.NewBuffer(make([]byte, 0))
 	zlibWriter := zlib.NewWriter(compressed)
 	if _, err := zlibWriter.Write(data); err != nil {
-		return "", nil, err
+		return "", err
 	}
 	if err := zlibWriter.Close(); err != nil {
-		return "", nil, err
+		return "", err
 	}
 
-	return objectname, compressed, nil
+	if write {
+		err := WriteObject(objectname, compressed.Bytes())
+		if err != nil {
+			return objectname, nil
+		}
+	}
+
+	return objectname, nil
 }

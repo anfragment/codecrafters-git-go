@@ -56,24 +56,10 @@ func main() {
 		os.Args = os.Args[1 : len(os.Args)-1]
 		flag.Parse()
 
-		objectname, buffer, err := HashObject(filepath)
+		objectname, err := HashObject(filepath, *w)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "hash-object: %v\n", err)
 			os.Exit(1)
-		}
-
-		if *w {
-			dirname, filename := objectname[:2], objectname[2:]
-			err := os.MkdirAll(fmt.Sprintf(".git/objects/%s", dirname), 0755)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "hash-object: %v\n", err)
-				os.Exit(1)
-			}
-			err = os.WriteFile(fmt.Sprintf(".git/objects/%s/%s", dirname, filename), buffer.Bytes(), 0644)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "hash-object: %v\n", err)
-				os.Exit(1)
-			}
 		}
 
 		fmt.Println(objectname)
@@ -86,9 +72,22 @@ func main() {
 
 		err := LsTree(objectname, *nameonly)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "ls-tree: %v\n")
+			fmt.Fprintf(os.Stderr, "ls-tree: %v\n", err)
 			os.Exit(1)
 		}
+	case "write-tree":
+		dirname := os.Args[len(os.Args)-1]
+		if len(os.Args) < 3 {
+			dirname = "."
+		}
+
+		objectname, err := WriteTree(dirname, true)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "write-tree: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println(objectname)
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command %s\n", command)
