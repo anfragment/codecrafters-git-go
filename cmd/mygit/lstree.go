@@ -4,12 +4,24 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 )
 
-func LsTree(objectname string, nameonly bool) (err error) {
+func LsTreeCmd() error {
+	nameonly := flag.Bool("name-only", false, "List only filenames (instead of the \"long\" output), one per line.")
+
+	objectname := os.Args[len(os.Args)-1]
+
+	os.Args = os.Args[1 : len(os.Args)-1]
+	flag.Parse()
+
+	return lsTree(objectname, *nameonly)
+}
+
+func lsTree(objectname string, nameonly bool) error {
 	dir, filename := objectname[:2], objectname[2:]
 	file, err := os.Open(fmt.Sprintf(".git/objects/%s/%s", dir, filename))
 	if err != nil {

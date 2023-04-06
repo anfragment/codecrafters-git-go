@@ -3,12 +3,31 @@ package main
 import (
 	"bytes"
 	"compress/zlib"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 )
 
-func CatFile(objectname string) error {
+func CatFileCmd() error {
+	p := flag.Bool("p", false, "Pretty-print object's content")
+
+	objectname := os.Args[len(os.Args)-1]
+
+	os.Args = os.Args[1 : len(os.Args)-1]
+	flag.Parse()
+	if !*p {
+		return fmt.Errorf("-p required")
+	}
+
+	err := catFile(objectname)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func catFile(objectname string) error {
 	dir, filename := objectname[:2], objectname[2:]
 	file, err := os.Open(fmt.Sprintf(".git/objects/%s/%s", dir, filename))
 	if err != nil {
@@ -29,7 +48,7 @@ func CatFile(objectname string) error {
 	}
 	contents.ReadBytes('\x00')
 
-	fmt.Print(string(contents.Bytes()))
+	fmt.Print(contents.String())
 
 	return nil
 }

@@ -1,15 +1,33 @@
 package main
 
 import (
-	"bytes"
-	"compress/zlib"
 	"crypto/sha1"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 )
 
-func HashObject(filepath string, write bool) (objectname string, err error) {
+func HashObjectCmd() error {
+	w := flag.Bool("w", false, "Actually write the object into the object database")
+
+	filepath := os.Args[len(os.Args)-1]
+
+	os.Args = os.Args[1 : len(os.Args)-1]
+	flag.Parse()
+
+	objectname, err := hashObject(filepath, *w)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(objectname)
+
+	return nil
+}
+
+func hashObject(filepath string, write bool) (objectname string, err error) {
 	// read file once to both compute sha-1 sum and compress using zlib
 	// with larger files, using os.Open might be better
 	contents, err := ioutil.ReadFile(filepath)
@@ -24,17 +42,8 @@ func HashObject(filepath string, write bool) (objectname string, err error) {
 	hasher.Write(data)
 	objectname = hex.EncodeToString(hasher.Sum(nil))
 
-	compressed := bytes.NewBuffer(make([]byte, 0))
-	zlibWriter := zlib.NewWriter(compressed)
-	if _, err := zlibWriter.Write(data); err != nil {
-		return "", err
-	}
-	if err := zlibWriter.Close(); err != nil {
-		return "", err
-	}
-
 	if write {
-		err := WriteObject(objectname, compressed.Bytes())
+		err := WriteObject(objectname, data)
 		if err != nil {
 			return objectname, nil
 		}

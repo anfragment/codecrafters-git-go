@@ -2,15 +2,31 @@ package main
 
 import (
 	"bytes"
-	"compress/zlib"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
-func WriteTree(dir string, write bool) (objectname string, err error) {
+func WriteTreeCmd() error {
+	dirname := os.Args[len(os.Args)-1]
+	if len(os.Args) < 3 {
+		dirname = "."
+	}
+
+	objectname, err := writeTree(dirname, true)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(objectname)
+
+	return nil
+}
+
+func writeTree(dir string, write bool) (objectname string, err error) {
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return "", err
@@ -23,7 +39,7 @@ func WriteTree(dir string, write bool) (objectname string, err error) {
 				continue
 			}
 
-			objectname, err := WriteTree(path, write)
+			objectname, err := writeTree(path, write)
 			if err != nil {
 				return "", nil
 			}
@@ -35,7 +51,7 @@ func WriteTree(dir string, write bool) (objectname string, err error) {
 			continue
 		}
 
-		objectname, err := HashObject(path, false)
+		objectname, err := hashObject(path, false)
 		if err != nil {
 			return "", err
 		}
@@ -52,16 +68,8 @@ func WriteTree(dir string, write bool) (objectname string, err error) {
 	hasher.Write(data)
 	objectname = hex.EncodeToString(hasher.Sum(nil))
 
-	compressed := bytes.NewBuffer(make([]byte, 0))
-	zlibWriter := zlib.NewWriter(compressed)
-	if _, err := zlibWriter.Write(data); err != nil {
-		return "", err
-	}
-	if err := zlibWriter.Close(); err != nil {
-		return "", err
-	}
 	if write {
-		err := WriteObject(objectname, compressed.Bytes())
+		err := WriteObject(objectname, data)
 		if err != nil {
 			return objectname, err
 		}
